@@ -1,70 +1,49 @@
-import axios, { AxiosResponse } from 'axios';
+import axios from 'axios';
 
-interface Props {
-  firstName: string;
-  lastName: string;
-  gender: 'male' | 'female';
-  age: number;
-  department: string | undefined;
-  hair: {
-    color: string;
-  };
-  address: {
-    postalCode: string;
-  };
-}
+export async function fetchDummyData() {
+  const response = await axios.get('https://dummyjson.com/users');
+  const users = response.data.users;
+  const result: any = {};
+  // const departments = users.map((user:any) => user.company.department);
+  // const arrDepartments = Array.from(new Set(departments));
 
-interface DepartmentProps {
-  male: number;
-  female: number;
-  ageRange: string;
-  hair: Record<string, number>;
-  addressUser: Record<string, string>;
-}
+  users.map((user: any) => {
+    const { department } = user.company;
+    const { gender, age, hair, address, firstName, lastName } = user;
 
-interface GroupedUsers {
-  [department: string]: DepartmentProps;
-}
-
-export async function fetchDummyData(): Promise<GroupedUsers> {
-  const response: AxiosResponse<{ users: Props[] }> = await axios.get('https://dummyjson.com/users');
-  const users: Props[] = response.data.users;
-
-  const groupedUsers = users.reduce<GroupedUsers>((acc, item) => {
-    const { department, gender, age, hair, firstName, lastName, address } = item;
-    const fullName = `${firstName}${lastName}`;
-    const departmentKey = department || "Department";
-
-    if (!acc[departmentKey]) {
-      acc[departmentKey] = {
+    if (!result[department]) {
+      result[department] = {
         male: 0,
         female: 0,
-        ageRange: '',
+        ageRange: {
+          min: Infinity,
+          max: -Infinity
+        },
         hair: {},
         addressUser: {}
       };
     }
 
     if (gender === 'male') {
-      acc[departmentKey].male++;
-    } else {
-      acc[departmentKey].female++;
+      result[department].male++;
+    } else if (gender === 'female') {
+      result[department].female++;
     }
 
-    const ages = (acc[departmentKey].ageRange.match(/\d+/g) || []).map(Number);
-    const minAge = ages[0] ? Math.min(...ages, age) : age;
-    const maxAge = ages[1] ? Math.max(...ages, age) : age;
-    acc[departmentKey].ageRange = `${minAge}-${maxAge}`;
+    result[department].ageRange.min = Math.min(result[department].ageRange.min, age);
+    result[department].ageRange.max = Math.max(result[department].ageRange.max, age);
 
-    if (hair.color) {
-      acc[departmentKey].hair[hair.color] = (acc[departmentKey].hair[hair.color] || 0) + 1;
+    if (hair && hair.color) {
+      result[department].hair[hair.color] = (result[department].hair[hair.color] || 0) + 1;
     }
 
-    acc[departmentKey].addressUser[fullName] = address.postalCode;
+    result[department].addressUser[`${firstName}${lastName}`] = address.postalCode;
+  });
 
-    return acc;
+  for (const department in result) {
+    const { ageRange } = result[department];
+    result[department].ageRange = `${ageRange.min}-${ageRange.max}`;
+  }
 
-  }, {} as GroupedUsers);
-
-  return groupedUsers;
-};
+  return result;
+}
